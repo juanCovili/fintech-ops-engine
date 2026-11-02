@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: fintech_mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: fintech_db
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: fintech_redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fintech_api
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017/fintech_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: development
+    depends_on:
+      - mongo
+      - redis
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fintech_reconciliation_worker
+    command: ["node", "dist/worker.js"]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/fintech_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: development
+    depends_on:
+      - mongo
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fintech_ui
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

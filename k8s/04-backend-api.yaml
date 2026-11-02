@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-api
+  namespace: fintech-ops
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-api
+  template:
+    metadata:
+      labels:
+        app: backend-api
+    spec:
+      containers:
+        - name: api
+          image: apio/fintech-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef:
+                name: fintech-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: fintech-ops
+spec:
+  selector:
+    app: backend-api
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000

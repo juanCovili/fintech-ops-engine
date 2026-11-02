@@ -1,7 +1,7 @@
 # ⚡ Financial Operating System (OS) — Microservicios & Conciliación SII
 
-[![CI/CD Pipeline](https://github.com/byjh0nnyb/fintech-ops-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/byjh0nnyb/fintech-ops-engine/actions)
-[![Live Demo](https://img.shields.io/badge/Demo-GitHub%20Pages%20Live-brightgreen.svg)](https://byjh0nnyb.github.io/fintech-ops-engine/)
+[![CI/CD Pipeline](https://github.com/juanCovili/fintech-ops-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/juanCovili/fintech-ops-engine/actions)
+[![Live Demo](https://img.shields.io/badge/Demo-GitHub%20Pages%20Live-brightgreen.svg)](https://juanCovili.github.io/fintech-ops-engine/)
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)](https://www.typescriptlang.org/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.4-emerald.svg)](https://vuejs.org/)
@@ -10,7 +10,7 @@
 
 > **Showcase de Arquitectura Financiera & DevOps:** Plataforma desacoplada de orquestación de pagos de alto tráfico, colas asíncronas con **Redis / BullMQ**, cálculo tributario chileno (19% IVA) y conciliación con el **SII (Documentos Tributarios Electrónicos - DTE)**, empaquetado en contenedores **Docker** y desplegado en **Kubernetes (HPA + Probes)** con integración continua en **GitHub Actions**.
 
-👉 **[PROBAR DEMO INTERACTIVA EN VIVO (GitHub Pages)](https://byjh0nnyb.github.io/fintech-ops-engine/)**
+👉 **[PROBAR DEMO INTERACTIVA EN VIVO (GitHub Pages)](https://juanCovili.github.io/fintech-ops-engine/)**
 
 ---
 
@@ -119,7 +119,7 @@ sequenceDiagram
 ### Ejecución:
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/byjh0nnyb/fintech-ops-engine.git
+git clone https://github.com/juanCovili/fintech-ops-engine.git
 cd fintech-ops-engine
 
 # 2. Levantar todo el stack contenerizado (Mongo + Redis + API + Worker + Vue UI)
@@ -164,4 +164,4 @@ npm test
 
 ## 👤 Autor
 **Juan Covili** — Ingeniero en Informática (INACAP)  
-[LinkedIn](https://www.linkedin.com/in/byjh0nnyb/) • [GitHub](https://github.com/byjh0nnyb)
+[LinkedIn](https://www.linkedin.com/in/juanCovili/) • [GitHub](https://github.com/juanCovili)

@@ -1,41 +1,90 @@
 # ⚡ Financial Operating System (OS) — Microservicios & Conciliación SII
 
 [![CI/CD Pipeline](https://github.com/byjh0nnyb/fintech-ops-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/byjh0nnyb/fintech-ops-engine/actions)
+[![Live Demo](https://img.shields.io/badge/Demo-GitHub%20Pages%20Live-brightgreen.svg)](https://byjh0nnyb.github.io/fintech-ops-engine/)
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)](https://www.typescriptlang.org/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.4-emerald.svg)](https://vuejs.org/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Production%20Ready-326CE5.svg)](https://kubernetes.io/)
+[![Jest Tests](https://img.shields.io/badge/Tests-Jest%20Passing-success.svg)](backend/tests/)
 
-> **Showcase de Arquitectura Financiera & DevOps:** Plataforma desacoplada de procesamiento de pagos de alto tráfico, colas asíncronas con **Redis / BullMQ**, cálculo tributario automatizado (19% IVA Chile) y conciliación con el **SII (Documentos Tributarios Electrónicos - DTE)**, empaquetado en contenedores **Docker** y desplegado en **Kubernetes (HPA + Probes)** con integración continua en **GitHub Actions**.
+> **Showcase de Arquitectura Financiera & DevOps:** Plataforma desacoplada de orquestación de pagos de alto tráfico, colas asíncronas con **Redis / BullMQ**, cálculo tributario chileno (19% IVA) y conciliación con el **SII (Documentos Tributarios Electrónicos - DTE)**, empaquetado en contenedores **Docker** y desplegado en **Kubernetes (HPA + Probes)** con integración continua en **GitHub Actions**.
+
+👉 **[PROBAR DEMO INTERACTIVA EN VIVO (GitHub Pages)](https://byjh0nnyb.github.io/fintech-ops-engine/)**
 
 ---
 
-## 🏗️ Arquitectura de Microservicios
+## 🏗️ Diagrama de Arquitectura en Kubernetes
 
+```mermaid
+flowchart TD
+    Client(["🌐 Cliente / Navegador"]) -->|HTTPS| Ingress["Ingress Controller (Nginx)"]
+    
+    subgraph K8s["☸️ Cluster Kubernetes (Namespace: fintech-ops)"]
+        Ingress -->|/api| SvcAPI["Service: backend-service"]
+        Ingress -->|/| SvcUI["Service: frontend-service"]
+        
+        subgraph PodsAPI["ReplicaSet: API Gateway (HPA 2 - 10 Pods)"]
+            Pod1["Node.js / Express API Pod 1"]
+            Pod2["Node.js / Express API Pod 2"]
+        end
+        
+        SvcAPI --> Pod1
+        SvcAPI --> Pod2
+        
+        Pod1 -->|Idempotent Store| MongoSvc["Service: mongo-service"]
+        Pod1 -->|Enqueue Job| RedisSvc["Service: redis-service"]
+        
+        MongoSvc --> Mongo[("MongoDB 7.0 Cluster")]
+        RedisSvc --> Redis[("Redis 7.2 Broker")]
+        
+        subgraph Workers["Workers Desacoplados (Reconciliation)"]
+            W1["Worker Pod 1"]
+            W2["Worker Pod 2"]
+        end
+        
+        Redis -->|Consume Task| W1
+        Redis -->|Consume Task| W2
+        
+        W1 -->|Emit DTE / Update Ledger| Mongo
+        W2 -->|Emit DTE / Update Ledger| Mongo
+    end
+
+    W1 -.->|Certificado Digital| SII["🏛️ SII Chile (DTE API)"]
+    W2 -.->|Certificado Digital| SII
 ```
-                                      ┌────────────────────────────────────────┐
-                                      │        Frontend Dashboard (Vue 3)      │
-                                      │       TypeScript + Vite + Tailwind     │
-                                      └───────────────────┬────────────────────┘
-                                                          │ (HTTP / REST)
-                                                          ▼
-┌────────────────────────┐            ┌────────────────────────────────────────┐
-│  Ingress Controller    │ ─────────► │    API Gateway / Payment Service       │
-│  (Nginx / Traefik)     │            │    Express + TypeScript + Zod          │
-└────────────────────────┘            └───────┬────────────────────────┬───────┘
-                                              │                        │
-                      Idempotent Storage      │                        │ Enqueue Job
-                                              ▼                        ▼
-                                      ┌───────────────┐        ┌───────────────┐
-                                      │    MongoDB    │        │  Redis Queue  │
-                                      │  (Documents)  │        │   (BullMQ)    │
-                                      └───────────────┘        └───────┬───────┘
-                                                                       │ Consume
-                                                                       ▼
-                                                      ┌────────────────────────────────┐
-                                                      │    Reconciliation Worker       │
-                                                      │  Emisión DTE Folio SII & Banco │
-                                                      └────────────────────────────────┘
+
+---
+
+## 🔄 Flujo Transaccional & Conciliación Tributaria
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Usuario / Checkout
+    participant API as API Gateway (Node.js/TS)
+    participant DB as MongoDB (Idempotency Store)
+    participant Q as Redis Queue (BullMQ)
+    participant W as Worker Conciliación
+    participant SII as SII Chile (DTE)
+
+    User->>API: POST /api/payments/process (Idempotency-Key, RUT, Monto)
+    API->>DB: Verificar Idempotency-Key
+    alt Clave ya existe (Duplicate Request)
+        DB-->>API: Transacción previa
+        API-->>User: 200 OK (Idempotency Hit - No se duplica cobro)
+    else Nueva Transacción
+        API->>API: Calcular Desglose Tributario (19% IVA)
+        API->>DB: Guardar estado 'AUTHORIZED'
+        API->>Q: Encolar tarea 'reconcile-transaction'
+        API-->>User: 201 Created (Pago autorizado)
+        
+        Note over Q,W: Procesamiento Asíncrono Desacoplado
+        Q->>W: Despachar Job (backoff exponencial en fallos)
+        W->>SII: Transmitir DTE y conciliar con banco
+        SII-->>W: Aprobación + Folio DTE emitido
+        W->>DB: Actualizar estado a 'SII_EMITTED' + Folio
+    end
 ```
 
 ---
@@ -98,15 +147,18 @@ kubectl get hpa -n fintech-ops
 
 ---
 
-## 🧪 Pruebas Unitarias (Jest)
+## 🧪 Pruebas Unitarias & Cobertura (Jest)
+
+Documentación completa en [`backend/tests/README.md`](backend/tests/README.md).
 
 ```bash
 cd backend
 npm test
 ```
 * Pruebas de cálculo de IVA chileno (19%) sin desfase de decimales.
-* Validación de RUT.
-* Validación de montos positivos y manejo de excepciones.
+* Validación de formato de RUT chileno.
+* Pruebas de concurrencia y claves de idempotencia.
+* Validación de generación de Folios DTE y Track IDs.
 
 ---
 

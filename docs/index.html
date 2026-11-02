@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financial Operating System (OS) — Live Demo (APIO Showcase)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    body { background-color: #0b0f19; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+</head>
+<body class="text-gray-100 p-4 md:p-8">
+  <div id="app" class="max-w-7xl mx-auto">
+    <!-- Top Bar -->
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-gray-800 gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+          <h1 class="text-2xl font-bold tracking-tight text-white">Financial Operating System (OS)</h1>
+          <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
+            APIO Architecture Showcase
+          </span>
+        </div>
+        <p class="text-sm text-gray-400 mt-1">
+          Demo interactiva en vivo — Orquestación de Pagos, Colas Redis & Conciliación Tributaria SII
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="https://github.com/byjh0nnyb/fintech-ops-engine" target="_blank" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm border border-gray-700 transition flex items-center gap-2">
+          <span>Ver Repositorio GitHub ↗</span>
+        </a>
+        <button @click="triggerPayment" :disabled="isProcessing" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium rounded-lg text-sm transition shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+          <span v-if="isProcessing">Encolando en Redis...</span>
+          <span v-else>+ Disparar Pago Idempotente</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Métricas -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 my-6">
+      <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+        <span class="text-xs font-medium text-gray-400 uppercase">Volumen Procesado</span>
+        <div class="text-2xl font-bold text-white mt-1">${{ formatCLP(totalVolume) }} CLP</div>
+        <span class="text-xs text-emerald-400">100% conciliado</span>
+      </div>
+      <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+        <span class="text-xs font-medium text-gray-400 uppercase">Transacciones Totales</span>
+        <div class="text-2xl font-bold text-white mt-1">{{ transactions.length }}</div>
+        <span class="text-xs text-gray-400">Idempotency Rate: 100%</span>
+      </div>
+      <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+        <span class="text-xs font-medium text-gray-400 uppercase">Cola Redis (BullMQ)</span>
+        <div class="text-2xl font-bold text-emerald-400 mt-1">5 Workers Activos</div>
+        <span class="text-xs text-gray-400">Backoff exponencial activado</span>
+      </div>
+      <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+        <span class="text-xs font-medium text-gray-400 uppercase">Emisión SII (DTE)</span>
+        <div class="text-2xl font-bold text-blue-400 mt-1">19% IVA Calculado</div>
+        <span class="text-xs text-gray-400">Folios electrónicos automáticos</span>
+      </div>
+    </div>
+
+    <!-- Feed Transaccional -->
+    <div class="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden mt-6">
+      <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+        <div>
+          <h2 class="text-base font-semibold text-white">Transacciones & Folios Emitidos</h2>
+          <p class="text-xs text-gray-400">Monitoreo reactivo de la pasarela y emisión en segundo plano</p>
+        </div>
+        <span class="text-xs px-2.5 py-1 rounded bg-gray-800 text-gray-300">Live Simulation</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-300">
+          <thead class="bg-gray-950/60 text-xs uppercase text-gray-400 border-b border-gray-800">
+            <tr>
+              <th class="px-6 py-3">ID Orden</th>
+              <th class="px-6 py-3">RUT Cliente</th>
+              <th class="px-6 py-3">Monto Total</th>
+              <th class="px-6 py-3">Neto / IVA 19%</th>
+              <th class="px-6 py-3">Estado</th>
+              <th class="px-6 py-3">Folio SII</th>
+              <th class="px-6 py-3">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-800/60">
+            <tr v-for="tx in transactions" :key="tx.id" class="hover:bg-gray-800/30 transition">
+              <td class="px-6 py-3 font-mono text-xs text-emerald-400 font-medium">{{ tx.orderId }}</td>
+              <td class="px-6 py-3 font-mono text-xs">{{ tx.customerRut }}</td>
+              <td class="px-6 py-3 font-semibold text-white">${{ formatCLP(tx.amount) }}</td>
+              <td class="px-6 py-3 text-xs text-gray-400">${{ formatCLP(tx.netAmount) }} / ${{ formatCLP(tx.ivaAmount) }}</td>
+              <td class="px-6 py-3">
+                <span
+                  :class="{
+                    'bg-emerald-950 text-emerald-400 border-emerald-800': tx.status === 'SII_EMITTED',
+                    'bg-amber-950 text-amber-400 border-amber-800': tx.status === 'AUTHORIZED'
+                  }"
+                  class="px-2.5 py-0.5 rounded text-[11px] font-semibold border inline-flex items-center gap-1.5"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="tx.status === 'SII_EMITTED' ? 'bg-emerald-400' : 'bg-amber-400 animate-ping'"></span>
+                  {{ tx.status }}
+                </span>
+              </td>
+              <td class="px-6 py-3 font-mono text-xs text-gray-300">
+                <span v-if="tx.siiFolio" class="text-blue-400">{{ tx.siiFolio }}</span>
+                <span v-else class="text-gray-500 italic">Encolado en Redis...</span>
+              </td>
+              <td class="px-6 py-3 text-xs text-gray-500">{{ tx.timestamp }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue;
+
+    createApp({
+      setup() {
+        const transactions = ref([
+          {
+            id: '1',
+            orderId: 'ORD-984210',
+            customerRut: '18.492.103-5',
+            amount: 59900,
+            netAmount: 50336,
+            ivaAmount: 9564,
+            status: 'SII_EMITTED',
+            siiFolio: 'DTE-847291',
+            timestamp: '12:15:30'
+          },
+          {
+            id: '2',
+            orderId: 'ORD-984209',
+            customerRut: '14.281.993-K',
+            amount: 11900,
+            netAmount: 10000,
+            ivaAmount: 1900,
+            status: 'SII_EMITTED',
+            siiFolio: 'DTE-847290',
+            timestamp: '12:14:10'
+          }
+        ]);
+
+        const isProcessing = ref(false);
+
+        const totalVolume = computed(() => {
+          return transactions.value.reduce((acc, curr) => acc + curr.amount, 0);
+        });
+
+        const formatCLP = (val) => {
+          return new Intl.NumberFormat('es-CL').format(val || 0);
+        };
+
+        const triggerPayment = () => {
+          isProcessing.value = true;
+          const randomAmount = Math.floor(Math.random() * 85000) + 15000;
+          const net = Math.round(randomAmount / 1.19);
+          const iva = randomAmount - net;
+          const rut = `${Math.floor(Math.random() * 8000000) + 12000000}-${Math.floor(Math.random() * 9)}`;
+          const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+
+          const newTx = {
+            id: Date.now().toString(),
+            orderId,
+            customerRut: rut,
+            amount: randomAmount,
+            netAmount: net,
+            ivaAmount: iva,
+            status: 'AUTHORIZED',
+            siiFolio: null,
+            timestamp: new Date().toLocaleTimeString()
+          };
+
+          transactions.value.unshift(newTx);
+          isProcessing.value = false;
+
+          // Simular el worker asíncrono de Redis procesando la conciliación tributaria
+          setTimeout(() => {
+            const tx = transactions.value.find(t => t.orderId === orderId);
+            if (tx) {
+              tx.status = 'SII_EMITTED';
+              tx.siiFolio = `DTE-${Math.floor(100000 + Math.random() * 900000)}`;
+            }
+          }, 1800);
+        };
+
+        return {
+          transactions,
+          totalVolume,
+          isProcessing,
+          formatCLP,
+          triggerPayment
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
